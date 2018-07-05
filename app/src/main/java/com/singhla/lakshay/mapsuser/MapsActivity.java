@@ -42,11 +42,10 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     private DatabaseReference databaseReference;
     List<String> categories = new ArrayList<String>();
     Spinner spinner;
-    String number,check;
-    Marker marker[] = new Marker[10];
+    String number,check, NothingSelected ="Select Buses";
     ArrayList <Marker> markerlist = new ArrayList<>();
     LatLng mylocation;
-    Marker myMarker;
+    Marker myMarker=null;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -58,40 +57,71 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         mapFragment.getMapAsync(this);
         databaseReference = FirebaseDatabase.getInstance().getReference();
 
-        if(myMarker != null){
-            myMarker=null;
-        }
-        // Spinner element
         spinner = (Spinner) findViewById(R.id.spinner);
-
-        // Spinner click listener
         spinner.setOnItemSelectedListener(this);
-
-        // Spinner Drop down elements
-        categories.add("879A from Janakpuri to Shahbad Dairy");
-        categories.add("879A from Shahbad Dairy to Janakpuri");
-
-        // Creating adapter for spinner
+        addSpinnerItems();
         ArrayAdapter<String> dataAdapter = new ArrayAdapter<String>(this, android.R.layout.simple_spinner_item, categories);
-
-        // Drop down layout style - list view with radio button
         dataAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-
-        // attaching data adapter to spinner
         spinner.setAdapter(dataAdapter);
 
+    }
+
+    void addSpinnerItems(){
+
+        categories.add(NothingSelected);
+        databaseReference.addListenerForSingleValueEvent(new ValueEventListener() {
+            @Override
+            public void onDataChange(DataSnapshot dataSnapshot) {
+                for(DataSnapshot ds : dataSnapshot.getChildren()){
+                    categories.add(ds.getKey());
+                }
+            }
+
+            @Override
+            public void onCancelled(DatabaseError databaseError) {
+                Toast.makeText(MapsActivity.this,"Something went wrong",Toast.LENGTH_SHORT).show();
+            }
+        });
     }
 
     @Override
     public void onItemSelected(AdapterView<?> adapterView, View view, int i, long l) {
 
-        if(i==0){
-            number = "879A from Janakpuri to Shahbad Dairy";
+        number = adapterView.getSelectedItem().toString() ;
+        if(number.equals(NothingSelected)){
+            for(Marker m : markerlist){
+                m.remove();
+            }
+            markerlist.clear();
+            return;
         }
-        else if(i==1){
-            number = "879A from Shahbad Dairy to Janakpuri";
-        }
+        databaseReference.addListenerForSingleValueEvent(new ValueEventListener() {
+            @Override
+            public void onDataChange(DataSnapshot dataSnapshot) {
+                int index=1;
+                for(Marker m : markerlist){
+                    m.remove();
+                }
+                markerlist.clear();
+                while( number != null ) {
+                    check = dataSnapshot.child(number).child("bus" + index).child("check").getValue(String.class);
+                    if (check == null)
+                        break;
+                    else if (check.equals("false")) {
+                        String s = dataSnapshot.child(number).child("bus" + index).child("lat").getValue(String.class);
+                        String s1 = dataSnapshot.child(number).child("bus" + index).child("long").getValue(String.class);
+                        LatLng pos = new LatLng(Double.parseDouble(s), Double.parseDouble(s1));
+                        markerlist.add( mMap.addMarker(new MarkerOptions().position(pos)) );
+                    }
+                    index++;
+                }
+            }
 
+            @Override
+            public void onCancelled(DatabaseError databaseError) {
+
+            }
+        });
     }
 
     @Override
@@ -121,7 +151,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         LocationSettingsRequest.Builder builder = new LocationSettingsRequest.Builder()
                 .addLocationRequest(mLocationRequest);
         try {
-            mFusedLocationClient.getLastLocation()
+            /*mFusedLocationClient.getLastLocation()
                     .addOnSuccessListener(this, new OnSuccessListener<Location>() {
                         @Override
                         public void onSuccess(Location location) {
@@ -130,7 +160,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                                 // Logic to handle location object
                             }
                         }
-                    });
+                    });*/
             mLocationCallback = new LocationCallback() {
                 @Override
                 public void onLocationResult(LocationResult locationResult) {
@@ -139,11 +169,13 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
                         mylocation = new LatLng(location.getLatitude(), location.getLongitude());
                         if(myMarker == null){
-                            mMap.moveCamera(CameraUpdateFactory.zoomBy(14f));
-                            mMap.moveCamera(CameraUpdateFactory.newLatLng(mylocation));
                             myMarker = mMap.addMarker(new MarkerOptions()
                                     .position(mylocation)
+                                    .anchor(0.5f,0.5f)
+                                    .zIndex(1)
                                     .icon(BitmapDescriptorFactory.fromResource(R.drawable.my_location_marker)));
+                            mMap.moveCamera(CameraUpdateFactory.zoomTo(14f));
+                            mMap.moveCamera(CameraUpdateFactory.newLatLng(mylocation));
                         }
                         myMarker.setPosition(mylocation);
                     }
@@ -163,7 +195,6 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         databaseReference.addValueEventListener(new ValueEventListener() {
             @Override
             public void onDataChange(DataSnapshot dataSnapshot) {
-
                 int index=1;
                 for(Marker m : markerlist){
                     m.remove();
@@ -177,18 +208,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                         //Toast.makeText(MapsActivity.this,number +" "+index,Toast.LENGTH_SHORT).show();
                         String s = dataSnapshot.child(number).child("bus" + index).child("lat").getValue(String.class);
                         String s1 = dataSnapshot.child(number).child("bus" + index).child("long").getValue(String.class);
-
                         LatLng pos = new LatLng(Double.parseDouble(s), Double.parseDouble(s1));
-
                         markerlist.add( mMap.addMarker(new MarkerOptions().position(pos)) );
-
-//                        if(markerlist.get(index-1) == null){
-//                            mMap.moveCamera(CameraUpdateFactory.zoomBy(14f));
-//                            markerlist.add(mMap.addMarker(new MarkerOptions().position(pos))) ;
-//                        }
-//                        markerlist.get(index-1).setPosition(pos);
-//                        mMap.moveCamera(CameraUpdateFactory.newLatLng(pos));
-                        //mMap.setMinZoomPreference(10.0f);
                     }
                     index++;
                 }
@@ -204,6 +225,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     @Override
     protected void onStop() {
         mFusedLocationClient.removeLocationUpdates(mLocationCallback);
+        myMarker.remove();
+        myMarker = null;
         super.onStop();
     }
 }
